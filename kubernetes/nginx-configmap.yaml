@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+  namespace: default
+data:
+  nginx.conf: |
+
+    upstream flask-app {
+    server flask-service:8000;
+    }
+
+    server{
+
+        listen 80;
+        index index.html;
+        root /usr/share/nginx/html;
+
+        location / {
+            try_files $uri /index.html =404;
+        }
+
+        location /api {
+
+        }
+        
+        location /health {
+            return 200 "health ok";
+        }
+
+        location /ready {
+            return 200 "ready";
+        }
+
+        location /static/css {
+            alias /usr/share/nginx/html/static/css;
+        }
+        location /static/js {
+            alias /usr/share/nginx/html/static/js;
+        }
+
+        location = /favicon.ico {
+            alias /usr/share/nginx/html/favicon.ico;
+        }
+        
+      }

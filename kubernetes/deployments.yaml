@@ -1,0 +1,207 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flask
+  template:
+    metadata:
+      labels:
+        app: flask
+    spec:
+      containers:
+        - name: flask
+          image: abdelalidocker/flask-app
+          imagePullPolicy: "Always"
+          resources:
+            limits:
+              cpu: "1000m"
+            requests:
+              cpu: "400m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          env:
+            - name: DB_HOST
+              value: mysql-service
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                    name: flask-secret
+                    key: db_name
+            - name: DB_USER
+              valueFrom: 
+                secretKeyRef:
+                    name: flask-secret
+                    key: db_user
+            - name: DB_PASSWD
+              valueFrom:
+                secretKeyRef:
+                    name: flask-secret
+                    key: db_passwd
+              
+          ports:
+            - containerPort: 8000
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myadmin-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myadmin
+  template:
+    metadata:
+      labels:
+        app: myadmin
+    spec:
+      containers:
+      - name: myadmin
+        image: phpmyadmin/phpmyadmin
+        env:
+          - name: PMA_PORT
+            value: "3306"
+          - name: PMA_HOST
+            value: mysql-service
+           
+        ports:
+        - containerPort: 80
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql
+          imagePullPolicy: "Always"
+          resources:
+            limits:
+              cpu: "1000m"
+            requests:
+              cpu: "400m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3306
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3306
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          env:
+            - name: MYSQL_USER
+              valueFrom: 
+                secretKeyRef:
+                    name: mysql-secret
+                    key: db_user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                    name: mysql-secret
+                    key: db_user_password
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                    name: mysql-secret
+                    key: db_root_password
+              
+          ports:
+            - containerPort: 3306
+            
+          volumeMounts:
+            - name: configmap
+              mountPath: /docker-entrypoint-initdb.d
+            
+      volumes:
+        - name: configmap
+          configMap:
+             name: mysqlconf
+             items:
+               - key: mysqlconf.sql
+                 path: mysqlconf.sql
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: react-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: react
+      tier: ui
+  template:
+    metadata:
+      labels:
+        app: react
+        tier: ui
+    spec:
+      containers:
+        - name: ui
+          image: abdelalidocker/react-flask-app
+          imagePullPolicy: "Always"
+          resources:
+            limits:
+              cpu: "1000m"
+            requests:
+              cpu: "400m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          ports:
+            - containerPort: 80
+          volumeMounts:
+          - name: configmap
+            mountPath: /etc/nginx/conf.d
+            readOnly: true
+            
+      volumes:
+        - name: configmap
+          configMap:
+             name: nginx-conf
+             items:
+               - key: nginx.conf
+                 path: nginx.conf
